@@ -4,6 +4,7 @@ let map = L.map('map', {
   zoomControl: false
 });
 
+// Base Layers
 const tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '© OpenStreetMap contributors'
 }).addTo(map);
@@ -26,7 +27,7 @@ let routes = [];
 let routeDrawingActive = false;
 let currentRoute = null;
 
-// Drawer toggle logic
+// Drawer toggle logic for showing route form
 const drawerBtn = document.getElementById('toggleDrawer');
 const routeForm = document.getElementById('routeForm');
 drawerBtn.addEventListener('click', () => {
@@ -34,7 +35,7 @@ drawerBtn.addEventListener('click', () => {
   routeForm.style.display = routeForm.style.display === 'none' ? 'flex' : 'none';
 });
 
-// Search Bar - Geocoding
+// Geocoder search bar
 L.Control.geocoder().addTo(map);
 
 // Terrain/Street/Satellite Toggle
@@ -122,24 +123,28 @@ document.getElementById('routeForm').addEventListener('submit', (e) => {
 
   routeLine.on('click', () => showRouteInfo(route));
 
-  // Only keep the first marker and remove others
+  // After submitting: only keep the first marker, and remove all others
   routeMarkers.forEach((marker, index) => {
     if (index > 0) {
       map.removeLayer(marker);
     }
   });
 
-  // Reset route markers and drawing mode
-  routeMarkers = [routeMarkers[0]]; // Keep the first marker only
+  // Reset route markers to only the first one
+  routeMarkers = [routeMarkers[0]];
+  
+  // Remove the route line and set the drawing mode off
   if (currentPolyline) map.removeLayer(currentPolyline);
   currentPolyline = null;
-  routeDrawingActive = false;  // Disable route drawing
-  drawerBtn.textContent = '+';  // Reset button text
+  routeDrawingActive = false;
+  drawerBtn.textContent = '+';  // Reset button text to "+"
+
+  // Hide the route form
   routeForm.reset();
   drawerBtn.click();
 });
 
-// Clear button
+// Clear button logic
 document.getElementById('clearRoute').addEventListener('click', () => {
   routeMarkers.forEach(m => map.removeLayer(m));
   routeMarkers = [];
@@ -147,7 +152,7 @@ document.getElementById('clearRoute').addEventListener('click', () => {
   currentPolyline = null;
 });
 
-// Start drawing mode
+// Start drawing mode logic
 document.getElementById('toggleDrawer').addEventListener('click', () => {
   routeDrawingActive = !routeDrawingActive;
   if (routeDrawingActive) {
