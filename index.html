@@ -1,29 +1,40 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>SmartMap</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="styles.css">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Car Routes</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css"
+    integrity="sha512-sA+4sQj6IrSxieZf0+J6YIjz0p2QbHgEZKUMyJ9F5t2QHeVhD1N20iCPzC5hIRBDwERyH95+tFsy5qSgsd5ZTA=="
+    crossorigin=""
+  />
 </head>
 <body>
-  <div id="search-container">
-    <input type="text" id="search-box" placeholder="Search for a location..." autocomplete="off">
-    <ul id="autocomplete-list"></ul>
-  </div>
-
-  <div id="layer-toggle">
-    <select id="layer-select">
-      <option value="streets">Streets</option>
-      <option value="satellite">Satellite</option>
-      <option value="terrain">Terrain</option>
-    </select>
-  </div>
-
   <div id="map"></div>
 
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <!-- Add Route Drawer -->
+  <div id="drawer">
+    <button id="toggleDrawer">+</button>
+    <form id="routeForm" style="display: none;">
+      <input type="text" id="title" placeholder="Route Title" required />
+      <textarea id="description" placeholder="Description"></textarea>
+      <input type="file" id="photo" accept="image/*" />
+      <button type="submit">Submit</button>
+      <button type="button" id="clearRoute">Clear</button>
+    </form>
+  </div>
+
+  <!-- Route Info Panel -->
+  <div id="routeInfo"></div>
+
+  <script
+    src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"
+    integrity="sha512-o9N1jL7fw5vYWKBy5Ah0KZy2CPlL9URx7PUfKzhyaZf1voSgMNSWceHjmRg0FazqIk1hX7crbA1LJ6UfG/4d2Q=="
+    crossorigin=""
+  ></script>
   <script src="script.js"></script>
 </body>
 </html>

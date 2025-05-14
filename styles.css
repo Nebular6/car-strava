@@ -1,63 +1,73 @@
 html, body {
-  margin: 0;
   height: 100%;
-  font-family: Arial, sans-serif;
+  margin: 0;
+  font-family: sans-serif;
 }
 
 #map {
-  height: 100%;
   width: 100%;
+  height: 100%;
+  z-index: 0;
 }
 
-#search-container {
+#drawer {
   position: absolute;
-  top: 10px;
-  left: 50%;
-  transform: translateX(-50%);
+  bottom: 20px;
+  right: 20px;
   z-index: 1000;
-  background: white;
-  padding: 6px;
-  border-radius: 5px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
 }
 
-#search-box {
-  width: 280px;
+#toggleDrawer {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  transition: transform 0.3s;
+}
+
+#toggleDrawer.open {
+  transform: rotate(45deg);
+}
+
+#routeForm {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+  background: white;
+  padding: 10px;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  width: 250px;
+}
+
+#routeForm input,
+#routeForm textarea,
+#routeForm button {
   padding: 6px;
   font-size: 14px;
 }
 
-#autocomplete-list {
+#routeInfo {
   position: absolute;
-  top: 36px;
-  left: 0;
-  width: 280px;
-  background: white;
-  border: 1px solid #ccc;
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  max-height: 200px;
-  overflow-y: auto;
-  z-index: 1001;
-}
-
-#autocomplete-list li {
-  padding: 6px;
-  cursor: pointer;
-}
-
-#autocomplete-list li:hover {
-  background-color: #f0f0f0;
-}
-
-#layer-toggle {
-  position: absolute;
-  top: 10px;
-  right: 10px;
+  left: 20px;
+  top: 50%;
+  transform: translateY(-50%);
   z-index: 1000;
+  width: 300px;
   background: white;
-  padding: 6px;
-  border-radius: 5px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+  padding: 12px;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  display: none;
+}
+
+#routeInfo img {
+  width: 100%;
+  border-radius: 6px;
+  margin-top: 8px;
 }
