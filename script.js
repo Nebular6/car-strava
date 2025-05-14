@@ -1,16 +1,12 @@
 // ─── INITIALIZE MAP & BASE LAYERS ─────────────────────────────────────────────
 const map = L.map('map', { center: [40, -100], zoom: 4, zoomControl: false });
-
-// Street / Terrain / Satellite tile layers
 const baseLayers = {
   street: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '© OpenStreetMap contributors'
   }).addTo(map),
-
   terrain: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
     attribution: '© OpenTopoMap contributors'
   }),
-
   satellite: L.tileLayer(
     'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     { attribution: 'Imagery © Esri & NASA' }
@@ -18,17 +14,17 @@ const baseLayers = {
 };
 
 // ─── GLOBAL STATE ───────────────────────────────────────────────────────────────
-let drawing = false;         // are we in drawing mode?
-let draftPts = [];           // array of LatLngs while drawing
-let draftOut, draftIn;       // preview polylines
-const routes = [];           // saved routes
+let drawing = false;
+let draftPts = [];
+let draftOut, draftIn;
+const routes = [];
 
 // ─── DRAWER & FORM TOGGLE ───────────────────────────────────────────────────────
 const drawerBtn = document.getElementById('toggleDrawer');
 const formEl    = document.getElementById('routeForm');
 drawerBtn.addEventListener('click', () => {
   drawing = !drawing;
-  drawerBtn.textContent = drawing ? 'Stop Drawing' : '+';
+  drawerBtn.textContent = drawing ? '✕' : '+';
   formEl.style.display   = drawing ? 'flex' : 'none';
 });
 
@@ -40,15 +36,10 @@ const viewOrder = ['street','terrain','satellite'];
 let viewIdx = 0;
 const viewBtn = document.createElement('button');
 viewBtn.innerText = 'Toggle View';
-Object.assign(viewBtn.style, {
-  position: 'absolute', top: '10px', left: '10px', zIndex: 1000
-});
+Object.assign(viewBtn.style, { position: 'absolute', top: '10px', left: '10px', zIndex:1000 });
 viewBtn.addEventListener('click', () => {
-  // remove current layer
   baseLayers[viewOrder[viewIdx]].remove();
-  // advance index
   viewIdx = (viewIdx + 1) % viewOrder.length;
-  // add next layer
   baseLayers[viewOrder[viewIdx]].addTo(map);
 });
 document.body.appendChild(viewBtn);
@@ -56,76 +47,70 @@ document.body.appendChild(viewBtn);
 // ─── ROUTE DRAWING PREVIEW ──────────────────────────────────────────────────────
 map.on('click', e => {
   if (!drawing) return;
-
-  // record point
   draftPts.push(e.latlng);
 
-  // clear previous preview
   if (draftOut) map.removeLayer(draftOut);
   if (draftIn)  map.removeLayer(draftIn);
 
-  // draw two‑tone preview lines
-  draftOut = L.polyline(draftPts, {
-    color: '#66ccff', weight: 6, opacity: 0.8
-  }).addTo(map);
-
-  draftIn = L.polyline(draftPts, {
-    color: '#005f99', weight: 2, opacity: 1
-  }).addTo(map);
+  draftOut = L.polyline(draftPts, { color: '#66ccff', weight: 6, opacity: 0.8 }).addTo(map);
+  draftIn  = L.polyline(draftPts, { color: '#005f99', weight: 2, opacity: 1   }).addTo(map);
 });
 
 // ─── SUBMIT ROUTE ───────────────────────────────────────────────────────────────
 formEl.addEventListener('submit', e => {
   e.preventDefault();
   if (draftPts.length < 2) {
-    return alert('Please add at least two points before submitting.');
+    return alert('Please add at least two points.');
   }
 
-  // grab form values
-  const title     = document.getElementById('title').value;
-  const desc      = document.getElementById('description').value;
-  const file      = document.getElementById('photo').files[0];
-  const photoURL  = file ? URL.createObjectURL(file) : null;
+  // capture inputs
+  const title    = document.getElementById('title').value;
+  const desc     = document.getElementById('description').value;
+  const file     = document.getElementById('photo').files[0];
+  const photoURL = file ? URL.createObjectURL(file) : null;
 
-  // build route object
   const route = {
     title,
     desc,
     photoURL,
-    latlngs: draftPts.slice(),
+    pts: draftPts.slice(),
     outline: null,
     inner: null,
-    pin: null
+    pin: null,
+    endPin: null
   };
 
-  // prepare but do not add polylines
-  route.outline = L.polyline(route.latlngs, {
-    color: '#66ccff', weight: 6, opacity: 0.8
-  });
-  route.inner   = L.polyline(route.latlngs, {
-    color: '#005f99', weight: 2, opacity: 1
-  });
+  // prepare polylines (but don't add yet)
+  route.outline = L.polyline(route.pts, { color:'#66ccff', weight:6, opacity:0.8 });
+  route.inner   = L.polyline(route.pts, { color:'#005f99', weight:2, opacity:1   });
 
-  // place single “route‐pin” at first point
-  const first = route.latlngs[0];
-  route.pin = L.circleMarker(first, {
-    radius: 8,
-    fillColor: '#66ccff',
-    color: '#005f99',
-    weight: 2,
-    fillOpacity: 1
+  // place the single “route‑pin” at the start
+  route.pin = L.circleMarker(route.pts[0], {
+    radius: 8, fillColor: '#66ccff', color: '#005f99', weight: 2, fillOpacity: 1
   }).addTo(map);
 
-  // click the pin to reveal lines + info panel
+  // clicking that pin reveals the route + info + end‑pin
   route.pin.on('click', () => {
+    // show lines
     route.outline.addTo(map);
     route.inner.addTo(map);
+
+    // show end marker
+    if (route.endPin) {
+      route.endPin.addTo(map);
+    } else {
+      route.endPin = L.circleMarker(route.pts[route.pts.length - 1], {
+        radius: 6, fillColor: '#005f99', color: '#66ccff', weight: 2, fillOpacity: 1
+      }).addTo(map);
+    }
+
+    // show info panel with close button
     showRouteInfo(route);
   });
 
   routes.push(route);
 
-  // clean up drafts
+  // clear drawing preview
   draftPts = [];
   if (draftOut) map.removeLayer(draftOut);
   if (draftIn)  map.removeLayer(draftIn);
@@ -139,7 +124,6 @@ formEl.addEventListener('submit', e => {
 
 // ─── CLEAR DRAFT ───────────────────────────────────────────────────────────────
 document.getElementById('clearRoute').addEventListener('click', () => {
-  // remove draft preview
   draftPts = [];
   if (draftOut) map.removeLayer(draftOut);
   if (draftIn)  map.removeLayer(draftIn);
@@ -148,13 +132,30 @@ document.getElementById('clearRoute').addEventListener('click', () => {
 // ─── INFO PANEL DISPLAY ────────────────────────────────────────────────────────
 function showRouteInfo(route) {
   const box = document.getElementById('routeInfo');
-  box.innerHTML = `<h3>${route.title}</h3><p>${route.desc}</p>`;
+  // build header with close‑button
+  box.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <h3 style="margin:0">${route.title}</h3>
+      <button id="closeInfo" style="font-size:18px;line-height:1;border:none;
+              background:transparent;cursor:pointer">✕</button>
+    </div>
+    <p>${route.desc}</p>
+  `;
+  // optional photo
   if (route.photoURL) {
     const img = document.createElement('img');
     img.src = route.photoURL;
+    img.style.width = '100%';
+    img.style.borderRadius = '6px';
+    img.style.marginTop = '8px';
     box.appendChild(img);
   }
   box.style.display = 'block';
+
+  // wire up close button
+  document.getElementById('closeInfo').onclick = () => {
+    box.style.display = 'none';
+  };
 }
 
 // ─── GEOLOCATION ON LOAD ───────────────────────────────────────────────────────
