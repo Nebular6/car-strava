@@ -22,22 +22,24 @@ html, body {
 }
 
 #search-box {
-  width: 250px;
+  width: 280px;
   padding: 6px;
   font-size: 14px;
 }
 
 #autocomplete-list {
   position: absolute;
-  margin-top: 4px;
+  top: 36px;
+  left: 0;
+  width: 280px;
   background: white;
   border: 1px solid #ccc;
   list-style: none;
   padding: 0;
-  width: 250px;
+  margin: 0;
   max-height: 200px;
   overflow-y: auto;
-  z-index: 1000;
+  z-index: 1001;
 }
 
 #autocomplete-list li {
@@ -58,8 +60,4 @@ html, body {
   padding: 6px;
   border-radius: 5px;
   box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-}
-
-#layer-select {
-  padding: 4px;
 }

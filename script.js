@@ -1,26 +1,30 @@
-let map, marker;
-let tiles = {
+let map;
+let marker;
+let currentBaseLayer;
+
+// Base map layers
+const layers = {
   streets: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap contributors'
+    attribution: '© OpenStreetMap contributors'
   }),
-  satellite: L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
-    maxZoom: 20,
-    subdomains:['mt0','mt1','mt2','mt3'],
-    attribution: 'Satellite © Google'
+  satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    attribution: 'Imagery © Esri & NASA'
   }),
   terrain: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-    attribution: 'Map data © OpenTopoMap contributors'
+    attribution: 'Map data: © OpenTopoMap contributors'
   })
 };
 
+// Initialize the map
 map = L.map('map', {
-  center: [0, 0],
+  center: [20, 0],
   zoom: 2,
   zoomControl: false,
-  layers: [tiles.streets]
+  layers: [layers.streets]
 });
+currentBaseLayer = layers.streets;
 
-// Geolocation on load
+// Try geolocation
 if (navigator.geolocation) {
   navigator.geolocation.getCurrentPosition(
     (pos) => {
@@ -28,32 +32,34 @@ if (navigator.geolocation) {
       map.setView(coords, 13);
       marker = L.marker(coords).addTo(map);
     },
-    () => {
-      console.warn('Geolocation permission denied or unavailable.');
-    }
+    () => console.warn("Geolocation blocked or failed."),
+    { timeout: 10000 }
   );
+} else {
+  console.warn("Geolocation not supported.");
 }
 
-// Map click to place marker
-map.on('click', function(e) {
+// Click to place marker
+map.on("click", (e) => {
   if (marker) map.removeLayer(marker);
   marker = L.marker(e.latlng).addTo(map);
 });
 
-// Layer switcher
-document.getElementById('layer-select').addEventListener('change', function() {
-  const selected = this.value;
-  map.eachLayer(layer => map.removeLayer(layer));
-  tiles[selected].addTo(map);
+// Layer switching
+document.getElementById("layer-select").addEventListener("change", (e) => {
+  map.removeLayer(currentBaseLayer);
+  const selected = e.target.value;
+  currentBaseLayer = layers[selected];
+  map.addLayer(currentBaseLayer);
 });
 
-// Autocomplete
+// Autocomplete via Photon API
 const searchBox = document.getElementById("search-box");
-const resultList = document.getElementById("autocomplete-list");
+const autocompleteList = document.getElementById("autocomplete-list");
 
 searchBox.addEventListener("input", async () => {
-  const query = searchBox.value;
-  resultList.innerHTML = "";
+  const query = searchBox.value.trim();
+  autocompleteList.innerHTML = "";
 
   if (query.length < 3) return;
 
@@ -69,8 +75,15 @@ searchBox.addEventListener("input", async () => {
       if (marker) map.removeLayer(marker);
       marker = L.marker([lat, lon]).addTo(map);
       searchBox.value = li.textContent;
-      resultList.innerHTML = "";
+      autocompleteList.innerHTML = "";
     });
-    resultList.appendChild(li);
+    autocompleteList.appendChild(li);
   });
+});
+
+// Dismiss autocomplete when clicking outside
+document.addEventListener("click", (e) => {
+  if (!searchBox.contains(e.target)) {
+    autocompleteList.innerHTML = "";
+  }
 });
