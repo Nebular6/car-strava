@@ -1,107 +1,134 @@
-// ─── INITIALIZE MAP & LAYERS ─────────────────────────────────────────────────
+// ─── INITIALIZE MAP & BASE LAYERS ─────────────────────────────────────────────
 const map = L.map('map', { center: [40, -100], zoom: 4, zoomControl: false });
-const street = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '© OpenStreetMap contributors'
-}).addTo(map);
-const terrain = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-  attribution: '© OpenTopoMap contributors'
-});
-const satellite = L.tileLayer(
-  'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-    attribution: 'Imagery © Esri & NASA'
-});
 
-// ─── STATE ────────────────────────────────────────────────────────────────────
-let drawing = false;
-let draftMarkers = [];
-let draftOutline, draftInner;
-const routes = [];
+// Street / Terrain / Satellite tile layers
+const baseLayers = {
+  street: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors'
+  }).addTo(map),
 
-// ─── FORM TOGGLE ──────────────────────────────────────────────────────────────
+  terrain: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenTopoMap contributors'
+  }),
+
+  satellite: L.tileLayer(
+    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    { attribution: 'Imagery © Esri & NASA' }
+  )
+};
+
+// ─── GLOBAL STATE ───────────────────────────────────────────────────────────────
+let drawing = false;         // are we in drawing mode?
+let draftPts = [];           // array of LatLngs while drawing
+let draftOut, draftIn;       // preview polylines
+const routes = [];           // saved routes
+
+// ─── DRAWER & FORM TOGGLE ───────────────────────────────────────────────────────
 const drawerBtn = document.getElementById('toggleDrawer');
 const formEl    = document.getElementById('routeForm');
 drawerBtn.addEventListener('click', () => {
   drawing = !drawing;
   drawerBtn.textContent = drawing ? 'Stop Drawing' : '+';
-  formEl.style.display = drawing ? 'flex' : 'none';
+  formEl.style.display   = drawing ? 'flex' : 'none';
 });
 
-// ─── GEOCODER & VIEW TOGGLE ──────────────────────────────────────────────────
+// ─── GEOCODER SEARCH CONTROL ────────────────────────────────────────────────────
 L.Control.geocoder().addTo(map);
-const views = [street, terrain, satellite];
+
+// ─── STREET/TERRAIN/SATELLITE VIEW TOGGLE ───────────────────────────────────────
+const viewOrder = ['street','terrain','satellite'];
 let viewIdx = 0;
 const viewBtn = document.createElement('button');
 viewBtn.innerText = 'Toggle View';
-Object.assign(viewBtn.style, { position: 'absolute', top: '10px', left: '10px', zIndex:1000 });
+Object.assign(viewBtn.style, {
+  position: 'absolute', top: '10px', left: '10px', zIndex: 1000
+});
 viewBtn.addEventListener('click', () => {
-  map.removeLayer(views[viewIdx]);
-  viewIdx = (viewIdx + 1) % views.length;
-  map.addLayer(views[viewIdx]);
+  // remove current layer
+  baseLayers[viewOrder[viewIdx]].remove();
+  // advance index
+  viewIdx = (viewIdx + 1) % viewOrder.length;
+  // add next layer
+  baseLayers[viewOrder[viewIdx]].addTo(map);
 });
 document.body.appendChild(viewBtn);
 
-// ─── DRAWING LOGIC ────────────────────────────────────────────────────────────
+// ─── ROUTE DRAWING PREVIEW ──────────────────────────────────────────────────────
 map.on('click', e => {
   if (!drawing) return;
-  const m = L.marker(e.latlng).addTo(map);
-  draftMarkers.push(m);
 
-  if (draftOutline) map.removeLayer(draftOutline);
-  if (draftInner)   map.removeLayer(draftInner);
+  // record point
+  draftPts.push(e.latlng);
 
-  const pts = draftMarkers.map(x=>x.getLatLng());
-  draftOutline = L.polyline(pts, { color:'#66ccff', weight:6, opacity:0.8 }).addTo(map);
-  draftInner   = L.polyline(pts, { color:'#005f99', weight:2, opacity:1   }).addTo(map);
+  // clear previous preview
+  if (draftOut) map.removeLayer(draftOut);
+  if (draftIn)  map.removeLayer(draftIn);
+
+  // draw two‑tone preview lines
+  draftOut = L.polyline(draftPts, {
+    color: '#66ccff', weight: 6, opacity: 0.8
+  }).addTo(map);
+
+  draftIn = L.polyline(draftPts, {
+    color: '#005f99', weight: 2, opacity: 1
+  }).addTo(map);
 });
 
-// ─── SUBMIT ROUTE ─────────────────────────────────────────────────────────────
+// ─── SUBMIT ROUTE ───────────────────────────────────────────────────────────────
 formEl.addEventListener('submit', e => {
   e.preventDefault();
-  if (draftMarkers.length < 2) {
-    return alert('Add at least two points.');
+  if (draftPts.length < 2) {
+    return alert('Please add at least two points before submitting.');
   }
 
-  // capture form data
+  // grab form values
   const title     = document.getElementById('title').value;
   const desc      = document.getElementById('description').value;
   const file      = document.getElementById('photo').files[0];
   const photoURL  = file ? URL.createObjectURL(file) : null;
-  const pts       = draftMarkers.map(m=>m.getLatLng());
 
-  // create permanent polylines
-  const outline = L.polyline(pts, { color:'#66ccff', weight:6, opacity:0.8 }).addTo(map);
-  const inner   = L.polyline(pts, { color:'#005f99', weight:2, opacity:1   }).addTo(map);
+  // build route object
+  const route = {
+    title,
+    desc,
+    photoURL,
+    latlngs: draftPts.slice(),
+    outline: null,
+    inner: null,
+    pin: null
+  };
 
-  // explicitly grab the first marker
-  const firstMarker = draftMarkers[0];
-  // copy all markers
-  const allMarkers = draftMarkers.slice();
+  // prepare but do not add polylines
+  route.outline = L.polyline(route.latlngs, {
+    color: '#66ccff', weight: 6, opacity: 0.8
+  });
+  route.inner   = L.polyline(route.latlngs, {
+    color: '#005f99', weight: 2, opacity: 1
+  });
 
-  const route = { title, desc, photoURL, outline, inner, allMarkers, firstMarker };
+  // place single “route‐pin” at first point
+  const first = route.latlngs[0];
+  route.pin = L.circleMarker(first, {
+    radius: 8,
+    fillColor: '#66ccff',
+    color: '#005f99',
+    weight: 2,
+    fillOpacity: 1
+  }).addTo(map);
+
+  // click the pin to reveal lines + info panel
+  route.pin.on('click', () => {
+    route.outline.addTo(map);
+    route.inner.addTo(map);
+    showRouteInfo(route);
+  });
+
   routes.push(route);
 
-  // info popup on line click
-  outline.on('click', () => showInfo(route));
-
-  // hide everything except the first marker
-  allMarkers.forEach(m => {
-    if (m !== firstMarker) map.removeLayer(m);
-  });
-  map.removeLayer(outline);
-  map.removeLayer(inner);
-
-  // make first marker clickable to restore full route
-  firstMarker.off('click').on('click', () => {
-    allMarkers.forEach(m => m.addTo(map));
-    outline.addTo(map);
-    inner.addTo(map);
-  });
-
-  // clear draft
-  draftMarkers.forEach(m => map.removeLayer(m));
-  draftMarkers = [];
-  if (draftOutline) map.removeLayer(draftOutline);
-  if (draftInner)   map.removeLayer(draftInner);
+  // clean up drafts
+  draftPts = [];
+  if (draftOut) map.removeLayer(draftOut);
+  if (draftIn)  map.removeLayer(draftIn);
 
   // reset UI
   drawing = false;
@@ -110,16 +137,16 @@ formEl.addEventListener('submit', e => {
   formEl.style.display = 'none';
 });
 
-// ─── CLEAR DRAFT ─────────────────────────────────────────────────────────────
+// ─── CLEAR DRAFT ───────────────────────────────────────────────────────────────
 document.getElementById('clearRoute').addEventListener('click', () => {
-  draftMarkers.forEach(m => map.removeLayer(m));
-  draftMarkers = [];
-  if (draftOutline) map.removeLayer(draftOutline);
-  if (draftInner)   map.removeLayer(draftInner);
+  // remove draft preview
+  draftPts = [];
+  if (draftOut) map.removeLayer(draftOut);
+  if (draftIn)  map.removeLayer(draftIn);
 });
 
-// ─── INFO PANEL ───────────────────────────────────────────────────────────────
-function showInfo(route) {
+// ─── INFO PANEL DISPLAY ────────────────────────────────────────────────────────
+function showRouteInfo(route) {
   const box = document.getElementById('routeInfo');
   box.innerHTML = `<h3>${route.title}</h3><p>${route.desc}</p>`;
   if (route.photoURL) {
@@ -130,9 +157,10 @@ function showInfo(route) {
   box.style.display = 'block';
 }
 
-// ─── GEOLOCATION ──────────────────────────────────────────────────────────────
+// ─── GEOLOCATION ON LOAD ───────────────────────────────────────────────────────
 if (navigator.geolocation) {
-  navigator.geolocation.getCurrentPosition(pos => {
-    map.setView([pos.coords.latitude, pos.coords.longitude], 13);
-  }, () => console.warn('Geolocation not allowed.'));
+  navigator.geolocation.getCurrentPosition(
+    pos => map.setView([pos.coords.latitude, pos.coords.longitude], 13),
+    () => console.warn('Geolocation not allowed.')
+  );
 }
