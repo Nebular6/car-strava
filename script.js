@@ -14,10 +14,17 @@ const satelliteLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{
   maxZoom: 19
 });
 
+const terrainLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap contributors',
+  tileSize: 256,
+  maxZoom: 19
+});
+
 let routeMarkers = [];
 let currentPolyline = null;
 let routes = [];
 let routeDrawingActive = false;
+let currentRoute = null;
 
 // Drawer toggle logic
 const drawerBtn = document.getElementById('toggleDrawer');
@@ -30,7 +37,7 @@ drawerBtn.addEventListener('click', () => {
 // Search Bar - Geocoding
 L.Control.geocoder().addTo(map);
 
-// Satellite/Street Toggle
+// Terrain/Street/Satellite Toggle
 const viewToggleBtn = document.createElement('button');
 viewToggleBtn.innerText = 'Toggle Satellite';
 viewToggleBtn.style.position = 'absolute';
@@ -40,6 +47,9 @@ viewToggleBtn.style.zIndex = 1000;
 viewToggleBtn.addEventListener('click', () => {
   if (map.hasLayer(satelliteLayer)) {
     map.removeLayer(satelliteLayer);
+    map.addLayer(terrainLayer);
+  } else if (map.hasLayer(terrainLayer)) {
+    map.removeLayer(terrainLayer);
     map.addLayer(tileLayer);
   } else {
     map.removeLayer(tileLayer);
@@ -105,18 +115,26 @@ document.getElementById('routeForm').addEventListener('submit', (e) => {
     description,
     photoURL: photo ? URL.createObjectURL(photo) : null,
     polyline: routeLine,
-    latlngs
+    latlngs,
+    markers: routeMarkers
   };
   routes.push(route);
 
   routeLine.on('click', () => showRouteInfo(route));
 
+  // Only keep the first marker and remove others
+  routeMarkers.forEach((marker, index) => {
+    if (index > 0) {
+      map.removeLayer(marker);
+    }
+  });
+
   // Reset route markers and drawing mode
-  routeMarkers.forEach(m => map.removeLayer(m));
-  routeMarkers = [];
+  routeMarkers = [routeMarkers[0]]; // Keep the first marker only
   if (currentPolyline) map.removeLayer(currentPolyline);
   currentPolyline = null;
   routeDrawingActive = false;  // Disable route drawing
+  drawerBtn.textContent = '+';  // Reset button text
   routeForm.reset();
   drawerBtn.click();
 });
