@@ -26,6 +26,7 @@ let currentPolyline = null;
 let routes = [];
 let routeDrawingActive = false;
 let currentRoute = null;
+let firstMarker = null;  // Keep track of the first marker
 
 // Drawer toggle logic for showing route form
 const drawerBtn = document.getElementById('toggleDrawer');
@@ -65,6 +66,10 @@ map.on('click', (e) => {
 
   const marker = L.marker(e.latlng).addTo(map);
   routeMarkers.push(marker);
+
+  if (routeMarkers.length === 1) {
+    firstMarker = marker;  // Keep track of the first marker
+  }
 
   if (currentPolyline) {
     map.removeLayer(currentPolyline);
@@ -123,20 +128,18 @@ document.getElementById('routeForm').addEventListener('submit', (e) => {
 
   routeLine.on('click', () => showRouteInfo(route));
 
-  // After submitting: only keep the first marker, and remove all others
+  // Only keep the first marker, remove all others
   routeMarkers.forEach((marker, index) => {
     if (index > 0) {
       map.removeLayer(marker);
     }
   });
 
-  // Reset route markers to only the first one
-  routeMarkers = [routeMarkers[0]];
-  
-  // Remove the route line and set the drawing mode off
+  // Clear the route markers and line
+  routeMarkers = [firstMarker];  // Only the first marker remains
   if (currentPolyline) map.removeLayer(currentPolyline);
   currentPolyline = null;
-  routeDrawingActive = false;
+  routeDrawingActive = false;  // Disable route drawing mode
   drawerBtn.textContent = '+';  // Reset button text to "+"
 
   // Hide the route form
