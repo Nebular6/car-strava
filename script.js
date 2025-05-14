@@ -157,6 +157,7 @@ document.getElementById('toggleDrawer').addEventListener('click', () => {
   }
 });
 
+// Show route information in the sidebar
 function showRouteInfo(route) {
   const infoBox = document.getElementById('routeInfo');
   infoBox.innerHTML = `<h3>${route.title}</h3><p>${route.description}</p>`;
