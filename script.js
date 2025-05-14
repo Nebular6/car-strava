@@ -8,9 +8,16 @@ const tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.pn
   attribution: '© OpenStreetMap contributors'
 }).addTo(map);
 
+const satelliteLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap contributors',
+  tileSize: 256,
+  maxZoom: 19
+});
+
 let routeMarkers = [];
 let currentPolyline = null;
 let routes = [];
+let routeDrawingActive = false;
 
 // Drawer toggle logic
 const drawerBtn = document.getElementById('toggleDrawer');
@@ -20,8 +27,31 @@ drawerBtn.addEventListener('click', () => {
   routeForm.style.display = routeForm.style.display === 'none' ? 'flex' : 'none';
 });
 
-// Map click to create route
+// Search Bar - Geocoding
+L.Control.geocoder().addTo(map);
+
+// Satellite/Street Toggle
+const viewToggleBtn = document.createElement('button');
+viewToggleBtn.innerText = 'Toggle Satellite';
+viewToggleBtn.style.position = 'absolute';
+viewToggleBtn.style.top = '10px';
+viewToggleBtn.style.left = '10px';
+viewToggleBtn.style.zIndex = 1000;
+viewToggleBtn.addEventListener('click', () => {
+  if (map.hasLayer(satelliteLayer)) {
+    map.removeLayer(satelliteLayer);
+    map.addLayer(tileLayer);
+  } else {
+    map.removeLayer(tileLayer);
+    map.addLayer(satelliteLayer);
+  }
+});
+document.body.appendChild(viewToggleBtn);
+
+// Map click to create route (if in drawing mode)
 map.on('click', (e) => {
+  if (!routeDrawingActive) return;
+
   const marker = L.marker(e.latlng).addTo(map);
   routeMarkers.push(marker);
 
@@ -81,11 +111,12 @@ document.getElementById('routeForm').addEventListener('submit', (e) => {
 
   routeLine.on('click', () => showRouteInfo(route));
 
-  // Reset
+  // Reset route markers and drawing mode
   routeMarkers.forEach(m => map.removeLayer(m));
   routeMarkers = [];
   if (currentPolyline) map.removeLayer(currentPolyline);
   currentPolyline = null;
+  routeDrawingActive = false;  // Disable route drawing
   routeForm.reset();
   drawerBtn.click();
 });
@@ -96,6 +127,16 @@ document.getElementById('clearRoute').addEventListener('click', () => {
   routeMarkers = [];
   if (currentPolyline) map.removeLayer(currentPolyline);
   currentPolyline = null;
+});
+
+// Start drawing mode
+document.getElementById('toggleDrawer').addEventListener('click', () => {
+  routeDrawingActive = !routeDrawingActive;
+  if (routeDrawingActive) {
+    drawerBtn.textContent = 'Stop Drawing';
+  } else {
+    drawerBtn.textContent = '+';
+  }
 });
 
 function showRouteInfo(route) {
