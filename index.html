@@ -2,15 +2,22 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>OpenStreetMap Viewer</title>
+  <title>Open Map</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 </head>
 <body>
   <div id="search-container">
-    <input type="text" id="search-box" placeholder="Search (e.g. Paris)">
-    <button onclick="searchLocation()">Search</button>
+    <input type="text" id="search-box" placeholder="Search..." autocomplete="off">
+    <ul id="autocomplete-list"></ul>
+  </div>
+  <div id="layer-toggle">
+    <select id="layer-select">
+      <option value="streets">Streets</option>
+      <option value="satellite">Satellite</option>
+      <option value="terrain">Terrain</option>
+    </select>
   </div>
   <div id="map"></div>
 

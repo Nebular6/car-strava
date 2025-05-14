@@ -1,34 +1,76 @@
-// Initialize map
-const map = L.map('map').setView([40.7128, -74.0060], 13); // New York City
+let map, marker;
+let tiles = {
+  streets: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors'
+  }),
+  satellite: L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+    maxZoom: 20,
+    subdomains:['mt0','mt1','mt2','mt3'],
+    attribution: 'Satellite © Google'
+  }),
+  terrain: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+    attribution: 'Map data © OpenTopoMap contributors'
+  })
+};
 
-// Add OpenStreetMap tiles
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '&copy; OpenStreetMap contributors'
-}).addTo(map);
+map = L.map('map', {
+  center: [0, 0],
+  zoom: 2,
+  zoomControl: false,
+  layers: [tiles.streets]
+});
 
-// Click to add marker
-let marker;
+// Geolocation on load
+if (navigator.geolocation) {
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      const coords = [pos.coords.latitude, pos.coords.longitude];
+      map.setView(coords, 13);
+      marker = L.marker(coords).addTo(map);
+    },
+    () => {
+      console.warn('Geolocation permission denied or unavailable.');
+    }
+  );
+}
+
+// Map click to place marker
 map.on('click', function(e) {
   if (marker) map.removeLayer(marker);
   marker = L.marker(e.latlng).addTo(map);
 });
 
-// Search by location name using Nominatim
-async function searchLocation() {
-  const query = document.getElementById('search-box').value;
-  if (!query) return;
+// Layer switcher
+document.getElementById('layer-select').addEventListener('change', function() {
+  const selected = this.value;
+  map.eachLayer(layer => map.removeLayer(layer));
+  tiles[selected].addTo(map);
+});
 
-  const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`;
+// Autocomplete
+const searchBox = document.getElementById("search-box");
+const resultList = document.getElementById("autocomplete-list");
 
-  const res = await fetch(url);
+searchBox.addEventListener("input", async () => {
+  const query = searchBox.value;
+  resultList.innerHTML = "";
+
+  if (query.length < 3) return;
+
+  const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=5`);
   const data = await res.json();
 
-  if (data && data.length > 0) {
-    const { lat, lon } = data[0];
-    map.setView([lat, lon], 13);
-    if (marker) map.removeLayer(marker);
-    marker = L.marker([lat, lon]).addTo(map);
-  } else {
-    alert("Location not found.");
-  }
-}
+  data.features.forEach(place => {
+    const li = document.createElement("li");
+    li.textContent = place.properties.name + (place.properties.city ? `, ${place.properties.city}` : '');
+    li.addEventListener("click", () => {
+      const [lon, lat] = place.geometry.coordinates;
+      map.setView([lat, lon], 13);
+      if (marker) map.removeLayer(marker);
+      marker = L.marker([lat, lon]).addTo(map);
+      searchBox.value = li.textContent;
+      resultList.innerHTML = "";
+    });
+    resultList.appendChild(li);
+  });
+});
