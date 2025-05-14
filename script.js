@@ -4,185 +4,158 @@ let map = L.map('map', {
   zoomControl: false
 });
 
-// Base Layers
-const tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+// ─── Base Layers ───────────────────────────────────────────────────────────────
+const streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '© OpenStreetMap contributors'
 }).addTo(map);
 
 const satelliteLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '© OpenStreetMap contributors',
-  tileSize: 256,
-  maxZoom: 19
+  attribution: '© OpenStreetMap contributors'
 });
 
-const terrainLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '© OpenStreetMap contributors',
-  tileSize: 256,
-  maxZoom: 19
+const terrainLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenTopoMap contributors'
 });
 
-let routeMarkers = [];
-let currentPolyline = null;
-let routes = [];
-let routeDrawingActive = false;
-let currentRoute = null;
-let firstMarker = null;  // Keep track of the first marker
+// ─── State ────────────────────────────────────────────────────────────────────
+let drawing = false;
+let tempMarkers = [];
+let tempOutline, tempInner;
+const routes = [];
 
-// Drawer toggle logic for showing route form
+// ─── Drawer / Form Toggle ────────────────────────────────────────────────────
 const drawerBtn = document.getElementById('toggleDrawer');
-const routeForm = document.getElementById('routeForm');
+const formEl    = document.getElementById('routeForm');
 drawerBtn.addEventListener('click', () => {
-  drawerBtn.classList.toggle('open');
-  routeForm.style.display = routeForm.style.display === 'none' ? 'flex' : 'none';
+  drawing = !drawing;
+  drawerBtn.textContent = drawing ? 'Stop Drawing' : '+';
+  formEl.style.display = drawing ? 'flex' : 'none';
 });
 
-// Geocoder search bar
+// ─── Geocoder Search ──────────────────────────────────────────────────────────
 L.Control.geocoder().addTo(map);
 
-// Terrain/Street/Satellite Toggle
-const viewToggleBtn = document.createElement('button');
-viewToggleBtn.innerText = 'Toggle Satellite';
-viewToggleBtn.style.position = 'absolute';
-viewToggleBtn.style.top = '10px';
-viewToggleBtn.style.left = '10px';
-viewToggleBtn.style.zIndex = 1000;
-viewToggleBtn.addEventListener('click', () => {
-  if (map.hasLayer(satelliteLayer)) {
-    map.removeLayer(satelliteLayer);
+// ─── View Toggle ─────────────────────────────────────────────────────────────
+const viewBtn = document.createElement('button');
+viewBtn.innerText = 'Toggle View';
+Object.assign(viewBtn.style, {
+  position: 'absolute', top: '10px', left: '10px', zIndex:1000
+});
+viewBtn.addEventListener('click', () => {
+  if (map.hasLayer(streetLayer)) {
+    map.removeLayer(streetLayer);
     map.addLayer(terrainLayer);
   } else if (map.hasLayer(terrainLayer)) {
     map.removeLayer(terrainLayer);
-    map.addLayer(tileLayer);
-  } else {
-    map.removeLayer(tileLayer);
     map.addLayer(satelliteLayer);
+  } else {
+    map.removeLayer(satelliteLayer);
+    map.addLayer(streetLayer);
   }
 });
-document.body.appendChild(viewToggleBtn);
+document.body.appendChild(viewBtn);
 
-// Map click to create route (if in drawing mode)
-map.on('click', (e) => {
-  if (!routeDrawingActive) return;
+// ─── DRAWING LOGIC ────────────────────────────────────────────────────────────
+map.on('click', e => {
+  if (!drawing) return;
 
-  const marker = L.marker(e.latlng).addTo(map);
-  routeMarkers.push(marker);
+  // add marker
+  const m = L.marker(e.latlng).addTo(map);
+  tempMarkers.push(m);
 
-  if (routeMarkers.length === 1) {
-    firstMarker = marker;  // Keep track of the first marker
-  }
+  // redraw preview
+  if (tempOutline) map.removeLayer(tempOutline);
+  if (tempInner)   map.removeLayer(tempInner);
 
-  if (currentPolyline) {
-    map.removeLayer(currentPolyline);
-  }
-
-  const latlngs = routeMarkers.map(m => m.getLatLng());
-  currentPolyline = L.polyline(latlngs, {
-    color: '#66ccff',
-    weight: 6,
-    opacity: 0.8,
-    className: 'route-outline'
-  }).addTo(map);
-
-  L.polyline(latlngs, {
-    color: '#005f99',
-    weight: 2,
-    opacity: 1
-  }).addTo(map);
+  const pts = tempMarkers.map(m=>m.getLatLng());
+  tempOutline = L.polyline(pts, { color:'#66ccff', weight:6, opacity:0.8 }).addTo(map);
+  tempInner   = L.polyline(pts, { color:'#005f99', weight:2, opacity:1   }).addTo(map);
 });
 
-// Submit route
-document.getElementById('routeForm').addEventListener('submit', (e) => {
+// ─── SUBMIT ───────────────────────────────────────────────────────────────────
+formEl.addEventListener('submit', e => {
   e.preventDefault();
-  const title = document.getElementById('title').value.trim();
-  const description = document.getElementById('description').value.trim();
-  const photoInput = document.getElementById('photo');
-  const photo = photoInput.files[0];
+  if (tempMarkers.length < 2) return alert('Add at least two points');
 
-  if (routeMarkers.length < 2) {
-    alert('Please add at least two points.');
-    return;
-  }
+  // build route object
+  const title       = document.getElementById('title').value;
+  const desc        = document.getElementById('description').value;
+  const photoFile   = document.getElementById('photo').files[0];
+  const photoURL    = photoFile ? URL.createObjectURL(photoFile) : null;
+  const pts         = tempMarkers.map(m=>m.getLatLng());
 
-  const latlngs = routeMarkers.map(m => m.getLatLng());
-  const routeLine = L.polyline(latlngs, {
-    color: '#66ccff',
-    weight: 6,
-    opacity: 0.8
-  }).addTo(map);
+  // permanent polylines
+  const outline = L.polyline(pts, { color:'#66ccff', weight:6, opacity:0.8 }).addTo(map);
+  const inner   = L.polyline(pts, { color:'#005f99', weight:2, opacity:1   }).addTo(map);
 
-  L.polyline(latlngs, {
-    color: '#005f99',
-    weight: 2,
-    opacity: 1
-  }).addTo(map);
+  // copy markers array
+  const markers = tempMarkers.slice();
 
-  const route = {
-    title,
-    description,
-    photoURL: photo ? URL.createObjectURL(photo) : null,
-    polyline: routeLine,
-    latlngs,
-    markers: routeMarkers
-  };
+  // route record
+  const route = { title, desc, photoURL, outline, inner, markers };
   routes.push(route);
 
-  routeLine.on('click', () => showRouteInfo(route));
+  // hide everything except first marker
+  _hideRoute(route);
 
-  // Only keep the first marker, remove all others
-  routeMarkers.forEach((marker, index) => {
-    if (index > 0) {
-      map.removeLayer(marker);
-    }
-  });
+  // attach click to first marker to restore
+  markers[0].on('click', () => _showRoute(route));
 
-  // Clear the route markers and line
-  routeMarkers = [firstMarker];  // Only the first marker remains
-  if (currentPolyline) map.removeLayer(currentPolyline);
-  currentPolyline = null;
-  routeDrawingActive = false;  // Disable route drawing mode
-  drawerBtn.textContent = '+';  // Reset button text to "+"
+  // reset temp drawing state
+  tempMarkers.forEach(m=>map.removeLayer(m));
+  tempMarkers.length = 0;
+  if (tempOutline) map.removeLayer(tempOutline);
+  if (tempInner)   map.removeLayer(tempInner);
 
-  // Hide the route form
-  routeForm.reset();
-  drawerBtn.click();
+  drawing = false;
+  drawerBtn.textContent = '+';
+  formEl.reset();
+  formEl.style.display = 'none';
 });
 
-// Clear button logic
+// ─── CLEAR DRAFT ─────────────────────────────────────────────────────────────
 document.getElementById('clearRoute').addEventListener('click', () => {
-  routeMarkers.forEach(m => map.removeLayer(m));
-  routeMarkers = [];
-  if (currentPolyline) map.removeLayer(currentPolyline);
-  currentPolyline = null;
+  tempMarkers.forEach(m => map.removeLayer(m));
+  tempMarkers = [];
+  if (tempOutline) map.removeLayer(tempOutline);
+  if (tempInner)   map.removeLayer(tempInner);
 });
 
-// Start drawing mode logic
-document.getElementById('toggleDrawer').addEventListener('click', () => {
-  routeDrawingActive = !routeDrawingActive;
-  if (routeDrawingActive) {
-    drawerBtn.textContent = 'Stop Drawing';
-  } else {
-    drawerBtn.textContent = '+';
-  }
-});
+// ─── SHOW / HIDE HELPERS ─────────────────────────────────────────────────────
+function _hideRoute(route) {
+  // remove all but first marker
+  route.markers.slice(1).forEach(m => map.removeLayer(m));
+  // remove polylines
+  map.removeLayer(route.outline);
+  map.removeLayer(route.inner);
+}
+function _showRoute(route) {
+  // re-add markers & polylines
+  route.markers.forEach(m => m.addTo(map));
+  route.outline.addTo(map);
+  route.inner.addTo(map);
+}
 
-// Show route information in the sidebar
+// ─── ROUTE INFO PANEL ────────────────────────────────────────────────────────
 function showRouteInfo(route) {
-  const infoBox = document.getElementById('routeInfo');
-  infoBox.innerHTML = `<h3>${route.title}</h3><p>${route.description}</p>`;
+  const box = document.getElementById('routeInfo');
+  box.innerHTML = `<h3>${route.title}</h3><p>${route.desc}</p>`;
   if (route.photoURL) {
     const img = document.createElement('img');
     img.src = route.photoURL;
-    infoBox.appendChild(img);
+    box.appendChild(img);
   }
-  infoBox.style.display = 'block';
+  box.style.display = 'block';
 }
 
-// Ask for geolocation
+// make polylines clickable for info
+routes.forEach(r => {
+  r.outline.on('click', () => showRouteInfo(r));
+});
+
+// ─── GEOLOCATION ──────────────────────────────────────────────────────────────
 if (navigator.geolocation) {
-  navigator.geolocation.getCurrentPosition(
-    (pos) => {
-      map.setView([pos.coords.latitude, pos.coords.longitude], 13);
-    },
-    () => console.warn('Geolocation not allowed.')
-  );
+  navigator.geolocation.getCurrentPosition(pos => {
+    map.setView([pos.coords.latitude, pos.coords.longitude], 13);
+  }, ()=>console.warn('No geolocation'));
 }
